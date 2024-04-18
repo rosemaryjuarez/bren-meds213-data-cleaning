@@ -1,0 +1,166 @@
+---
+title: "assignment week 2"
+author: "Rosemary Juarez"
+---
+
+## link to github:
+
+https://github.com/rosemaryjuarez/bren-meds213-data-cleaning
+
+## assignment instructions
+
+```         
+1. Clean the Water_cover column to transform it into the correct data type and respect expectations for a percentage
+
+2. Clean the Land_cover column to transform it into the correct data type and respect expectations for a percentage
+
+3. Use the relationship between the three cover columns (Snow, Water, Land) to infer missing values where possible and recompute the Total_cover column
+```
+
+```{r message = FALSE, warning=FALSE}
+
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+library(tidyverse)
+library(janitor)
+```
+
+## read in data
+
+```{r}
+snow <- read_csv("data/processed/snow_cover.csv") %>% 
+  clean_names()
+snow #checking to make sure it transfered
+```
+
+## explore data
+
+```{r}
+#now i want to explore the data and its types
+glimpse(snow)
+#looks like water and land cover are the same in regards to being characters. 
+#
+#checking if it also has other strings to represent null
+snow %>% 
+  count(water_cover)
+```
+
+## data cleaning: water cover
+
+```{r}
+#------------------------------
+# a lot of MUTATE
+#------------------------------
+
+#removing non-numeric characters first
+snow <- snow %>%
+  mutate(across(ends_with("_cover"), ~ifelse(.x == "-", NA, .x))) %>% #remove "-"
+  mutate(across(ends_with("_cover"), ~ifelse(.x == ".", NA, .x))) %>% #remove "."
+  mutate(water_cover = ifelse(water_cover == "n/a", NA, water_cover),#remove NAs
+         water_cover = ifelse(water_cover == "unk", NA, water_cover),# remove unknown char
+         (water_cover = ifelse(water_cover == "<1", "0", water_cover)),# remove values less than 0
+          water_cover = as.numeric(water_cover)
+         )
+
+#check if it worked again
+snow %>% 
+  count(water_cover) #it did!!
+
+#------------------------------
+# removing NA and weird numbers
+#------------------------------
+
+snow %>%  #na is still in character, so we have to convert it to int NA
+  count(water_cover) %>%
+  filter(is.na(as.numeric(water_cover)))
+
+snow %>% 
+  filter(water_cover > 100) #we have one row thats more than 100...
+
+snow <- snow %>% 
+  mutate(water_cover = ifelse(water_cover > 100, NA, water_cover)) #... so this should turn it to NA
+
+snow %>% 
+  filter(water_cover > 100) #none! yay!
+
+snow %>% 
+  filter(water_cover < 0) # none under 0 yay!
+
+
+
+```
+
+## data cleaning: land cover
+
+```{r}
+#--------------------------
+# explore data
+# -------------------------
+
+#now i want to explore the data and its types
+glimpse(snow)
+#looks like land is still character 
+#
+#checking if it also has other strings to represent null
+snow %>% 
+  count(land_cover) #there are some negative numbers?! Have to remove them
+
+#------------------------------
+#      MUTATE
+#------------------------------
+
+snow <- snow %>% 
+  mutate(land_cover = ifelse(land_cover == "<1", "0", land_cover),
+         land_cover = ifelse(land_cover == "n/a", NA, land_cover),#remove NAs
+         land_cover = ifelse(land_cover == "unk", NA, land_cover))
+
+
+#convert from character to integer!
+snow <- snow %>% 
+  mutate(land_cover = as.numeric(land_cover))
+
+#filtering time
+snow %>% 
+  filter(land_cover > 100) #none over 100!
+
+snow <- snow %>% 
+  filter(land_cover >= 0) #there are 2 with lexx than 0! need to fix this rn
+
+```
+Total cover
+```{r}
+#check that it is also only 100, then convert
+
+
+#convert to numeric
+snow$total_cover <- as.integer(snow$total_cover)
+
+
+#check any 100s
+snow %>% 
+  filter(total_cover > 100) #we have a couple.
+
+snow <- snow %>% 
+  mutate(total_cover = ifelse(total_cover > 100, NA, total_cover)) #... so this should turn it to NA
+
+snow %>% 
+  filter(water_cover > 100) #none! yay!
+
+snow %>% 
+  filter(water_cover < 0) # none under 0 yay!
+```
+
+
+## checking total_cover is still 100
+```{r}
+
+#recalculate the total cover and check
+snow <- snow %>% 
+  mutate(total_cover = snow_cover + water_cover + land_cover) #recalculate by adding
+```
+
+## save as csv
+```{r}
+write_csv(snow, file.path("data/processed/", "all_cover_fixed_rosemaryjuarez.csv"))
+```
+
+
